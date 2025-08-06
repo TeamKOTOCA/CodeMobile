@@ -1,238 +1,131 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>コードエディタ</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
-        }
-        h1 {
-            color: #333;
-        }
-        .controls {
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        #searchBox {
-            padding: 8px;
-            border: 1px solid #ccc;
-            font-size: 14px;
-        }
-        button {
-            padding: 8px 12px;
-            border: none;
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            font-size: 14px;
-            border-radius: 4px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .editor-container {
-            display: flex;
-            background-color: #282c34;
-            color: #abb2bf;
-            border: 1px solid #ccc;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 14px;
-            height: 80vh;
-            overflow: hidden;
-            position: relative;
-        }
-        .line-numbers {
-            background-color: #21252b;
-            color: #636d83;
-            padding: 10px;
-            text-align: right;
-            user-select: none;
-            overflow-y: hidden;
-            line-height: 1.5;
-            flex-shrink: 0;
-        }
-        .line-numbers span {
-            display: block;
-        }
-        #codeEditor,
-        .highlighted-code {
-            flex-grow: 1;
-            padding: 10px;
-            box-sizing: border-box;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            overflow-y: auto;
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            margin-left: 60px;
-        }
-        #codeEditor {
-            background-color: transparent;
-            color: transparent;
-            caret-color: #fff;
-            z-index: 2;
-            outline: none;
-            border: none;
-            resize: none;
-        }
-        .highlighted-code {
-            z-index: 1;
-            padding-right: 10px;
-        }
-        .string {
-            color: #98c379;
-        }
-        .comment {
-            color: #5c6370;
-        }
-        #autocomplete-list {
-            position: absolute;
-            z-index: 100;
-            list-style-type: none;
-            margin: 0;
-            padding: 0;
-            background-color: #333;
-            border: 1px solid #555;
-            color: #fff;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-        }
-        #autocomplete-list li {
-            padding: 5px 10px;
-            cursor: pointer;
-        }
-        #autocomplete-list li.active,
-        #autocomplete-list li:hover {
-            background-color: #007bff;
-        }
-        #errorMessage {
-            background-color: #dc3545;
-            color: white;
-            padding: 10px;
-            margin-top: 10px;
-            border-radius: 4px;
-            display: none;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>コードエディタ</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    h1 {
+      color: #333;
+    }
+    .editor-container {
+      position: relative;
+      background-color: #282c34;
+      border: 1px solid #ccc;
+      font-family: monospace;
+      height: 80vh;
+      overflow: hidden;
+    }
+    .line-numbers {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 50px;
+      background: #1e1e1e;
+      color: #858585;
+      padding: 10px;
+      line-height: 1.5;
+      text-align: right;
+      user-select: none;
+    }
+    .highlighted-code {
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 10px 10px 10px 60px;
+      color: #abb2bf;
+      background: transparent;
+      line-height: 1.5;
+      overflow-y: auto;
+      height: 100%;
+    }
+    textarea#codeEditor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 10px 10px 10px 60px;
+      background: transparent;
+      color: transparent;
+      caret-color: white;
+      font-family: monospace;
+      font-size: 14px;
+      border: none;
+      resize: none;
+      z-index: 2;
+      line-height: 1.5;
+    }
+    .comment {
+      color: #5c6370;
+    }
+    .string {
+      color: #98c379;
+    }
+  </style>
 </head>
 <body>
+  <h1>コードエディタ</h1>
+  <div class="editor-container">
+    <div class="line-numbers" id="lineNumbers"></div>
+    <pre class="highlighted-code" id="highlightedCode"></pre>
+    <textarea id="codeEditor" spellcheck="false"></textarea>
+  </div>
+  <script>
+    const editor = document.getElementById('codeEditor');
+    const highlighted = document.getElementById('highlightedCode');
+    const lineNumbers = document.getElementById('lineNumbers');
+    const storageKey = 'codeEditorContent';
 
-    <h1>コードエディタ</h1>
+    let wordlistData = {};
 
-    <div class="controls">
-        <input type="text" id="searchBox" placeholder="検索キーワードを入力">
-        <button id="searchButton">🔍️</button>
-        <button id="clearButton">🗑️</button>
-    </div>
+    fetch('wordlist.json')
+      .then((res) => res.json())
+      .then((data) => {
+        wordlistData = data;
+        const styleSheet = document.styleSheets[0];
+        for (const group in wordlistData) {
+          for (const word in wordlistData[group]) {
+            const cls = 'highlight-' + word.replace(/[^a-zA-Z0-9_]/g, '');
+            styleSheet.insertRule(`.${cls} { color: ${wordlistData[group][word]}; }`, styleSheet.cssRules.length);
+          }
+        }
+        const saved = localStorage.getItem(storageKey);
+        if (saved) editor.value = saved;
+        updateEditor();
+      });
 
-    <div class="editor-container">
-        <div class="line-numbers" id="lineNumbers"></div>
-        <div class="highlighted-code" id="highlightedCode"></div>
-        <textarea id="codeEditor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
-        <ul id="autocomplete-list"></ul>
-    </div>
-    <div id="errorMessage"></div>
+    const highlightCode = (code) => {
+      code = code
+        .replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>')
+        .replace(/(".*?"|'.*?')/g, '<span class="string">$&</span>');
+      for (const group in wordlistData) {
+        for (const word in wordlistData[group]) {
+          const cls = 'highlight-' + word.replace(/[^a-zA-Z0-9_]/g, '');
+          const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          code = code.replace(new RegExp(`\\b(${esc})\\b`, 'g'), `<span class="${cls}">$1</span>`);
+        }
+      }
+      return code;
+    };
 
-    <script>
-        const editor = document.getElementById('codeEditor');
-        const highlightedCode = document.getElementById('highlightedCode');
-        const lineNumbers = document.getElementById('lineNumbers');
-        const searchBox = document.getElementById('searchBox');
-        const searchButton = document.getElementById('searchButton');
-        const clearButton = document.getElementById('clearButton');
-        const autocompleteList = document.getElementById('autocomplete-list');
-        const errorMessageDiv = document.getElementById('errorMessage');
-        const storageKey = 'codeEditorContent';
+    const updateEditor = () => {
+      const content = editor.value;
+      highlighted.innerHTML = highlightCode(content);
+      localStorage.setItem(storageKey, content);
+      lineNumbers.innerHTML = Array.from({ length: content.split('\n').length }, (_, i) => i + 1).join('\n');
+    };
 
-        let wordlistData = {};
-        let allWords = [];
-        let activeSuggestion = -1;
-        let updateTimeout;
-
-        const displayError = (message) => {
-            errorMessageDiv.textContent = `エラー: ${message}`;
-            errorMessageDiv.style.display = 'block';
-        };
-
-        const hideError = () => {
-            errorMessageDiv.style.display = 'none';
-        };
-
-        fetch('wordlist.json')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`wordlist.jsonの読み込みに失敗しました。ステータスコード: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                hideError();
-                wordlistData = data;
-                for (const group in wordlistData) {
-                    allWords = allWords.concat(Object.keys(wordlistData[group]));
-                }
-                allWords.sort();
-
-                let styleSheet = document.styleSheets[0];
-                for (const group in wordlistData) {
-                    for (const word in wordlistData[group]) {
-                        const className = `highlight-${word.replace(/[^a-zA-Z0-9_]/g, '')}`;
-                        styleSheet.insertRule(`.${className} { color: ${wordlistData[group][word]}; }`, styleSheet.cssRules.length);
-                    }
-                }
-
-                const savedContent = localStorage.getItem(storageKey);
-                if (savedContent) {
-                    editor.value = savedContent;
-                }
-                updateEditor();
-            })
-            .catch(error => {
-                console.error('エラー:', error);
-                displayError(error.message);
-            });
-
-        const highlightCode = (code) => {
-            let highlighted = code;
-
-            highlighted = highlighted.replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>');
-            highlighted = highlighted.replace(/(".*?"|'.*?')/g, '<span class="string">$&</span>');
-
-            if (typeof wordlistData === 'object') {
-                for (const group in wordlistData) {
-                    const words = wordlistData[group];
-                    for (const word in words) {
-                        const className = `highlight-${word.replace(/[^a-zA-Z0-9_]/g, '')}`;
-                        const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        const regex = new RegExp(`\\b(${escapedWord})\\b`, 'g');
-                        highlighted = highlighted.replace(regex, `<span class="${className}">$1</span>`);
-                    }
-                }
-            }
-
-            return highlighted;
-        };
-
-        const updateEditor = () => {
-            const content = editor.value;
-            const lineCount = content.split('\n').length;
-            lineNumbers.innerHTML = Array.from({ length: lineCount }, (_, i) => `<span>${i + 1}</span>`).join('');
-            highlightedCode.innerHTML = highlightCode(content);
-        };
-
-        // 以下 autocomplete, scroll, search, etc. は元のままです（省略）
-    </script>
+    editor.addEventListener('input', updateEditor);
+    editor.addEventListener('scroll', () => {
+      highlighted.scrollTop = editor.scrollTop;
+      lineNumbers.scrollTop = editor.scrollTop;
+    });
+  </script>
 </body>
 </html>
