@@ -1,0 +1,408 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>コードエディタ</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+        }
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #searchBox {
+            padding: 8px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+        button {
+            padding: 8px 12px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .editor-container {
+            display: flex;
+            background-color: #282c34;
+            color: #abb2bf;
+            border: 1px solid #ccc;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            height: 80vh;
+            overflow: hidden;
+            position: relative;
+        }
+        .line-numbers {
+            background-color: #21252b;
+            color: #636d83;
+            padding: 10px;
+            text-align: right;
+            user-select: none;
+            overflow-y: hidden;
+            line-height: 1.5;
+            flex-shrink: 0;
+        }
+        .line-numbers span {
+            display: block;
+        }
+        #codeEditor,
+        .highlighted-code {
+            flex-grow: 1;
+            padding: 10px;
+            box-sizing: border-box;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-y: auto;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            margin-left: 60px;
+        }
+        #codeEditor {
+            background-color: transparent;
+            color: transparent;
+            caret-color: #fff;
+            z-index: 2;
+            outline: none;
+            border: none;
+            resize: none;
+        }
+        .highlighted-code {
+            z-index: 1;
+            padding-right: 10px;
+        }
+        .string {
+            color: #98c379;
+        }
+        .comment {
+            color: #5c6370;
+        }
+        /* オートコンプリートのスタイル */
+        #autocomplete-list {
+            position: absolute;
+            z-index: 100;
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            background-color: #333;
+            border: 1px solid #555;
+            color: #fff;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+        #autocomplete-list li {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #autocomplete-list li.active,
+        #autocomplete-list li:hover {
+            background-color: #007bff;
+        }
+        /* エラーメッセージのスタイル */
+        #errorMessage {
+            background-color: #dc3545;
+            color: white;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>コードエディタ</h1>
+
+    <div class="controls">
+        <input type="text" id="searchBox" placeholder="検索キーワードを入力">
+        <button id="searchButton">🔍️</button>
+        <button id="clearButton">🗑️</button>
+    </div>
+
+    <div class="editor-container">
+        <div class="line-numbers" id="lineNumbers"></div>
+        <div class="highlighted-code" id="highlightedCode"></div>
+        <textarea id="codeEditor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+        <ul id="autocomplete-list"></ul>
+    </div>
+    <div id="errorMessage"></div>
+
+    <script>
+        const editor = document.getElementById('codeEditor');
+        const highlightedCode = document.getElementById('highlightedCode');
+        const lineNumbers = document.getElementById('lineNumbers');
+        const searchBox = document.getElementById('searchBox');
+        const searchButton = document.getElementById('searchButton');
+        const clearButton = document.getElementById('clearButton');
+        const autocompleteList = document.getElementById('autocomplete-list');
+        const errorMessageDiv = document.getElementById('errorMessage');
+        const storageKey = 'codeEditorContent';
+        
+        let wordlistData = {};
+        let allWords = [];
+        let activeSuggestion = -1;
+        let updateTimeout;
+
+        const displayError = (message) => {
+            errorMessageDiv.textContent = `エラー: ${message}`;
+            errorMessageDiv.style.display = 'block';
+        };
+
+        const hideError = () => {
+            errorMessageDiv.style.display = 'none';
+        };
+
+        fetch('wordlist.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`wordlist.jsonの読み込みに失敗しました。ステータスコード: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                hideError();
+                wordlistData = data;
+                for (const group in wordlistData) {
+                    allWords = allWords.concat(Object.keys(wordlistData[group]));
+                }
+                allWords.sort();
+
+                let styleSheet = document.styleSheets[0];
+                for (const group in wordlistData) {
+                    for (const word in wordlistData[group]) {
+                        const className = `highlight-${word.replace(/[^a-zA-Z0-9_]/g, '')}`;
+                        styleSheet.insertRule(`.${className} { color: ${wordlistData[group][word]}; }`, styleSheet.cssRules.length);
+                    }
+                }
+
+                const savedContent = localStorage.getItem(storageKey);
+                if (savedContent) {
+                    editor.value = savedContent;
+                }
+                updateEditor();
+            })
+            .catch(error => {
+                console.error('エラー:', error);
+                displayError(error.message);
+            });
+        
+        const updateEditor = () => {
+            const content = editor.value;
+            const lineCount = content.split('\n').length;
+            
+            let numbers = '';
+            for (let i = 1; i <= lineCount; i++) {
+                numbers += `<span>${i}</span>`;
+            }
+            lineNumbers.innerHTML = numbers;
+
+            const highlightedHtml = highlightCode(content);
+            highlightedCode.innerHTML = highlightedHtml;
+        };
+
+        const highlightCode = (code) => {
+            let highlighted = code;
+
+            highlighted = highlighted.replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>');
+            highlighted = highlighted.replace(/(".*?")|('.*?')/g, '<span class="string">$&</span>');
+
+            for (const group in wordlistData) {
+                for (const word in wordlistData[group]) {
+                    const className = `highlight-${word.replace(/[^a-zA-Z0-9_]/g, '')}`;
+                    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(`\\b(${escapedWord})\\b`, 'g');
+                    highlighted = highlighted.replace(regex, `<span class="${className}">$&</span>`);
+                }
+            }
+
+            return highlighted;
+        };
+        
+        const showAutocomplete = (text) => {
+            const suggestions = allWords.filter(word => word.startsWith(text));
+            if (suggestions.length > 0) {
+                autocompleteList.innerHTML = '';
+                suggestions.forEach((suggestion, index) => {
+                    const li = document.createElement('li');
+                    li.textContent = suggestion;
+                    li.addEventListener('click', () => {
+                        insertSuggestion(suggestion);
+                    });
+                    autocompleteList.appendChild(li);
+                });
+                
+                autocompleteList.style.display = 'block';
+                activeSuggestion = -1;
+                const cursorPosition = getCursorCoordinates();
+                autocompleteList.style.top = `${cursorPosition.y + 20}px`;
+                autocompleteList.style.left = `${cursorPosition.x + 60}px`;
+            } else {
+                hideAutocomplete();
+            }
+        };
+
+        const hideAutocomplete = () => {
+            autocompleteList.style.display = 'none';
+        };
+
+        const insertSuggestion = (suggestion) => {
+            const cursorPosition = editor.selectionStart;
+            const textBeforeCursor = editor.value.substring(0, cursorPosition);
+            
+            const wordMatch = textBeforeCursor.match(/[\w.$]+$/);
+            const wordStartIndex = wordMatch ? cursorPosition - wordMatch[0].length : cursorPosition;
+            
+            editor.value = textBeforeCursor.substring(0, wordStartIndex) + suggestion + editor.value.substring(cursorPosition);
+            editor.selectionStart = editor.selectionEnd = wordStartIndex + suggestion.length;
+
+            hideAutocomplete();
+            updateEditor();
+        };
+
+        const getCursorCoordinates = () => {
+            const textarea = editor;
+            const position = textarea.selectionStart;
+            const div = document.createElement('div');
+            const copyStyle = getComputedStyle(textarea);
+            for (const prop of copyStyle) {
+                div.style[prop] = copyStyle[prop];
+            }
+            div.style.position = 'absolute';
+            div.style.top = '0px';
+            div.style.left = '0px';
+            div.style.visibility = 'hidden';
+            div.style.whiteSpace = 'pre-wrap';
+            div.textContent = textarea.value.substring(0, position);
+            
+            const span = document.createElement('span');
+            span.textContent = textarea.value.substring(position) || '.';
+            div.appendChild(span);
+            
+            document.body.appendChild(div);
+            const coordinates = span.getBoundingClientRect();
+            document.body.removeChild(div);
+            
+            return {
+                x: coordinates.left + window.scrollX,
+                y: coordinates.top + window.scrollY,
+            };
+        };
+
+        editor.addEventListener('input', () => {
+            localStorage.setItem(storageKey, editor.value);
+            
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                updateEditor();
+                
+                const cursorPosition = editor.selectionStart;
+                const textBeforeCursor = editor.value.substring(0, cursorPosition);
+                
+                const wordMatch = textBeforeCursor.match(/[\w.$]+$/);
+                const currentWord = wordMatch ? wordMatch[0] : '';
+
+                if (currentWord.length > 0) {
+                    showAutocomplete(currentWord);
+                } else {
+                    hideAutocomplete();
+                }
+            }, 200);
+        });
+        
+        editor.addEventListener('keydown', (e) => {
+            if (autocompleteList.style.display === 'block') {
+                const suggestions = autocompleteList.querySelectorAll('li');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeSuggestion = (activeSuggestion + 1) % suggestions.length;
+                    suggestions.forEach((li, index) => {
+                        li.classList.remove('active');
+                        if (index === activeSuggestion) {
+                            li.classList.add('active');
+                            li.scrollIntoView({ block: 'nearest' });
+                        }
+                    });
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeSuggestion = (activeSuggestion - 1 + suggestions.length) % suggestions.length;
+                    suggestions.forEach((li, index) => {
+                        li.classList.remove('active');
+                        if (index === activeSuggestion) {
+                            li.classList.add('active');
+                            li.scrollIntoView({ block: 'nearest' });
+                        }
+                    });
+                } else if (e.key === 'Enter' && activeSuggestion !== -1) {
+                    e.preventDefault();
+                    insertSuggestion(suggestions[activeSuggestion].textContent);
+                } else if (e.key === 'Escape') {
+                    hideAutocomplete();
+                }
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                editor.value = editor.value.substring(0, start) + '    ' + editor.value.substring(end);
+                editor.selectionStart = editor.selectionEnd = start + 4;
+            }
+        });
+
+        editor.addEventListener('scroll', () => {
+            lineNumbers.scrollTop = editor.scrollTop;
+            highlightedCode.scrollTop = editor.scrollTop;
+            hideAutocomplete();
+        });
+
+        searchButton.addEventListener('click', function() {
+            hideAutocomplete();
+            const searchText = searchBox.value;
+            if (!searchText) {
+                return;
+            }
+            const content = editor.value;
+            const index = content.indexOf(searchText);
+            if (index !== -1) {
+                editor.focus();
+                editor.setSelectionRange(index, index + searchText.length);
+            } else {
+                alert('指定されたキーワードは見つかりませんでした。');
+            }
+        });
+
+        searchBox.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                searchButton.click();
+            }
+        });
+
+        clearButton.addEventListener('click', function() {
+            if (confirm('エディタの内容をすべてクリアしますか？この操作は元に戻せません。')) {
+                editor.value = '';
+                localStorage.removeItem(storageKey);
+                updateEditor();
+            }
+        });
+    </script>
+</body>
+</html>
