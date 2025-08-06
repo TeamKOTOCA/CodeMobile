@@ -35,9 +35,10 @@
       user-select: none;
     }
     .highlighted-code {
+      margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
-      padding: 10px 10px 10px 60px;
+      padding: 10px 10px 10px 80px;
       color: #abb2bf;
       background: transparent;
       line-height: 1.5;
@@ -50,7 +51,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      padding: 10px 10px 10px 60px;
+      padding: 10px 10px 10px 80px;
       background: transparent;
       color: transparent;
       caret-color: white;
@@ -77,6 +78,8 @@
       overflow-y: auto;
       display: none;
       font-size: 14px;
+      list-style: none;
+      padding-left: 0;
     }
     #autocomplete-list li {
       padding: 5px 10px;
@@ -126,19 +129,32 @@
         updateEditor();
       });
 
-    const highlightCode = (code) => {
-      code = code
-        .replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>')
-        .replace(/(".*?"|'.*?')/g, '<span class="string">$&</span>');
-      for (const group in wordlistData) {
-        for (const word in wordlistData[group]) {
-          const cls = 'highlight-' + word.replace(/[^a-zA-Z0-9_]/g, '');
-          const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          code = code.replace(new RegExp(`\\b(${esc})\\b`, 'g'), `<span class="${cls}">$1</span>`);
+    function highlightCode(code) {
+      // コメントと文字列は最初にハイライト
+      code = code.replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>');
+      code = code.replace(/(".*?"|'.*?')/g, '<span class="string">$&</span>');
+
+      // HTMLタグ以外の部分だけ処理する
+      const segments = code.split(/(<[^>]+>)/g); // HTMLタグとそうでない部分に分割
+      console.log(segments);
+      for (let i = 0; i < segments.length; i++) {
+        // タグでない部分だけ処理
+        if (!segments[i].startsWith('<')) {
+          for (const group in wordlistData) {
+            for (const word in wordlistData[group]) {
+              const className = 'highlight-' + word.replace(/[^a-zA-Z0-9_]/g, '');
+              const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp(`\\b(${escapedWord})\\b`, 'g');
+              segments[i] = segments[i].replace(regex, `<span class="${className}">$1</span>`);
+            }
+          }
         }
       }
-      return code;
-    };
+
+      return segments.join('');
+    }
+
+
 
     const updateEditor = () => {
       const content = editor.value;
