@@ -67,6 +67,25 @@
     .string {
       color: #98c379;
     }
+    #autocomplete-list {
+      position: absolute;
+      z-index: 1000;
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #555;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+      font-size: 14px;
+    }
+    #autocomplete-list li {
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    #autocomplete-list li:hover,
+    #autocomplete-list li.active {
+      background-color: #007bff;
+    }
   </style>
 </head>
 <body>
@@ -75,14 +94,18 @@
     <div class="line-numbers" id="lineNumbers"></div>
     <pre class="highlighted-code" id="highlightedCode"></pre>
     <textarea id="codeEditor" spellcheck="false"></textarea>
+    <ul id="autocomplete-list"></ul>
   </div>
   <script>
     const editor = document.getElementById('codeEditor');
     const highlighted = document.getElementById('highlightedCode');
     const lineNumbers = document.getElementById('lineNumbers');
+    const autocompleteList = document.getElementById('autocomplete-list');
     const storageKey = 'codeEditorContent';
 
     let wordlistData = {};
+    let allWords = [];
+    let activeSuggestion = -1;
 
     fetch('wordlist.json')
       .then((res) => res.json())
@@ -90,11 +113,14 @@
         wordlistData = data;
         const styleSheet = document.styleSheets[0];
         for (const group in wordlistData) {
-          for (const word in wordlistData[group]) {
+          const groupWords = Object.keys(wordlistData[group]);
+          allWords.push(...groupWords);
+          for (const word of groupWords) {
             const cls = 'highlight-' + word.replace(/[^a-zA-Z0-9_]/g, '');
             styleSheet.insertRule(`.${cls} { color: ${wordlistData[group][word]}; }`, styleSheet.cssRules.length);
           }
         }
+        allWords.sort();
         const saved = localStorage.getItem(storageKey);
         if (saved) editor.value = saved;
         updateEditor();
@@ -121,11 +147,90 @@
       lineNumbers.innerHTML = Array.from({ length: content.split('\n').length }, (_, i) => i + 1).join('\n');
     };
 
-    editor.addEventListener('input', updateEditor);
+    editor.addEventListener('input', () => {
+      updateEditor();
+      showAutocomplete();
+    });
+
     editor.addEventListener('scroll', () => {
       highlighted.scrollTop = editor.scrollTop;
       lineNumbers.scrollTop = editor.scrollTop;
     });
+
+    editor.addEventListener('keydown', (e) => {
+      if (autocompleteList.style.display === 'block') {
+        const suggestions = autocompleteList.querySelectorAll('li');
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          activeSuggestion = (activeSuggestion + 1) % suggestions.length;
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          activeSuggestion = (activeSuggestion - 1 + suggestions.length) % suggestions.length;
+        } else if (e.key === 'Enter') {
+          if (activeSuggestion >= 0) {
+            e.preventDefault();
+            insertSuggestion(suggestions[activeSuggestion].textContent);
+          }
+        } else if (e.key === 'Escape') {
+          hideAutocomplete();
+        }
+
+        suggestions.forEach((li, i) => {
+          li.classList.toggle('active', i === activeSuggestion);
+        });
+      }
+    });
+
+    const showAutocomplete = () => {
+      const cursor = editor.selectionStart;
+      const textBefore = editor.value.slice(0, cursor);
+      const match = textBefore.match(/\b(\w+)$/);
+      const current = match ? match[1] : '';
+
+      if (!current) {
+        hideAutocomplete();
+        return;
+      }
+
+      const matches = allWords.filter(word => word.startsWith(current)).slice(0, 10);
+      if (matches.length === 0) {
+        hideAutocomplete();
+        return;
+      }
+
+      autocompleteList.innerHTML = '';
+      matches.forEach(word => {
+        const li = document.createElement('li');
+        li.textContent = word;
+        li.onclick = () => insertSuggestion(word);
+        autocompleteList.appendChild(li);
+      });
+
+      const rect = editor.getBoundingClientRect();
+      autocompleteList.style.top = rect.top + editor.scrollTop + 20 + 'px';
+      autocompleteList.style.left = rect.left + 60 + 'px';
+      autocompleteList.style.display = 'block';
+      activeSuggestion = -1;
+    };
+
+    const hideAutocomplete = () => {
+      autocompleteList.style.display = 'none';
+    };
+
+    const insertSuggestion = (word) => {
+      const cursor = editor.selectionStart;
+      const text = editor.value;
+      const before = text.slice(0, cursor);
+      const after = text.slice(cursor);
+      const match = before.match(/\b(\w+)$/);
+      if (!match) return;
+      const start = cursor - match[1].length;
+      editor.value = text.slice(0, start) + word + after;
+      editor.selectionStart = editor.selectionEnd = start + word.length;
+      editor.focus();
+      updateEditor();
+      hideAutocomplete();
+    };
   </script>
 </body>
 </html>
