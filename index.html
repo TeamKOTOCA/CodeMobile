@@ -222,24 +222,32 @@
         };
 
         const highlightCode = (code) => {
-            let highlighted = code;
+        let highlighted = code;
 
-            highlighted = highlighted.replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>');
-            highlighted = highlighted.replace(/(".*?")|('.*?')/g, '<span class="string">$&</span>');
+        // コメントをハイライト
+        highlighted = highlighted.replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>');
 
+        // 文字列をハイライト（""または''）
+        highlighted = highlighted.replace(/(".*?"|'.*?')/g, '<span class="string">$1</span>');
+
+   // wordlistData が存在するかチェック
+        if (typeof wordlistData === 'object') {
             for (const group in wordlistData) {
-                for (const word in wordlistData[group]) {
-                    const className = `highlight-${word.replace(/[^a-zA-Z0-9_]/g, '')}`;
-                    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    const regex = new RegExp(`\\b(${escapedWord})\\b`, 'g');
-                    highlighted = highlighted.replace(regex, `<span class="${className}">$&</span>`);
-                }
-            }
+        const words = wordlistData[group];
+                                                                        if (Array.isArray(words)) {
+                                                                                        for (const word of words) {
+                                                                                                            const className = `highlight-${word.replace(/[^a-zA-Z0-9_]/g, '')}`;
+                                                                                                                                const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                                                                                                                                    const regex = new RegExp(`\\b(${escapedWord})\\b`, 'g');
+                                                                                                                                                                        highlighted = highlighted.replace(regex, `<span class="${className}">$1</span>`);
+                                                                                                                                                                                        }
+                                                                                                                                                                                                    }
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                                }
 
-            return highlighted;
-        };
-        
-        const showAutocomplete = (text) => {
+                                                                                                                                                                                                                    return highlighted;
+                                                                                                                                                                                                                    };
+            const showAutocomplete = (text) => {
             const suggestions = allWords.filter(word => word.startsWith(text));
             if (suggestions.length > 0) {
                 autocompleteList.innerHTML = '';
