@@ -3,96 +3,155 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>コードエディタ</title>
+  <title>CodeMobile</title>
+  <link rel="icon" href="./codemobile.png">
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 20px;
-      background-color: #f0f0f0;
-    }
-    h1 {
-      color: #333;
-    }
-    .editor-container {
-      position: relative;
-      background-color: #282c34;
-      border: 1px solid #ccc;
-      font-family: monospace;
-      height: 80vh;
-      overflow: hidden;
-    }
-    .line-numbers {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 50px;
-      background: #1e1e1e;
-      color: #858585;
-      padding: 10px;
-      line-height: 1.5;
-      text-align: right;
-      user-select: none;
-    }
-    .highlighted-code {
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      padding: 10px 10px 10px 80px;
-      color: #abb2bf;
-      background: transparent;
-      line-height: 1.5;
-      overflow-y: auto;
-      height: 100%;
-    }
-    textarea#codeEditor {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      padding: 10px 10px 10px 80px;
-      background: transparent;
-      color: transparent;
-      caret-color: white;
-      font-family: monospace;
-      font-size: 14px;
-      border: none;
-      resize: none;
-      z-index: 2;
-      line-height: 1.5;
-    }
-    .comment {
-      color: #5c6370;
-    }
-    .string {
-      color: #98c379;
-    }
-    #autocomplete-list {
-      position: absolute;
-      z-index: 1000;
-      background-color: #333;
-      color: #fff;
-      border: 1px solid #555;
-      max-height: 200px;
-      overflow-y: auto;
-      display: none;
-      font-size: 14px;
-      list-style: none;
-      padding-left: 0;
-    }
-    #autocomplete-list li {
-      padding: 5px 10px;
-      cursor: pointer;
-    }
-    #autocomplete-list li:hover,
-    #autocomplete-list li.active {
-      background-color: #007bff;
-    }
+  body {
+    font-family: sans-serif;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+
+    background-color: #282c34;
+    height: 100vh;
+  }
+
+  .head{
+    height: 50px;
+    display: flex;
+    border: 1px solid #ccc;
+    border-bottom: 1px solid #666;
+  }
+  .head button{
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  .head img{
+    height: 50px;
+  }
+
+  #lang_selector{
+    background-color: #282c34;
+    border-radius: 0;
+    font-size: 1.25em;
+    color: #aaa;
+  }
+
+  .editor-container {
+    position: relative;
+    background-color: #282c34;
+    border: 1px solid #ccc;
+    border-top: 1px solid #666;
+    font-family: monospace;
+    flex-grow: 1;
+    overflow: hidden;
+  }
+
+  .line-numbers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50px;
+    background: #1e1e1e;
+    height: fit-content;
+    overflow-y: scroll;
+    scrollbar-width: none;
+    color: #858585;
+    padding: 10px;
+    line-height: 1.5;
+    text-align: right;
+    user-select: none;
+    box-sizing: border-box;
+  }
+
+  /* エディタとハイライト部分の見た目を完全一致させる */
+  .highlighted-code,
+  textarea#codeEditor {
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: 0;
+    padding: 10px 10px 10px 80px;
+    margin: 0;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* ハイライト表示用 */
+  .highlighted-code {
+    color: #abb2bf;
+    background: transparent;
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  /* 実際の入力欄（透明） */
+  textarea#codeEditor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    color: transparent;
+    caret-color: white;
+    border: none;
+    resize: none;
+    z-index: 2;
+  }
+
+  /* ハイライト用クラス */
+  .comment {
+    color: #5c6370;
+  }
+
+  .string {
+    color: #98c379;
+  }
+
+  /* 補完リスト */
+  #autocomplete-list {
+    position: absolute;
+    z-index: 1000;
+    background-color: #333;
+    color: #fff;
+    border: 1px solid #555;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    font-size: 14px;
+    list-style: none;
+    padding-left: 0;
+  }
+
+  #autocomplete-list li {
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+
+  #autocomplete-list li:hover,
+  #autocomplete-list li.active {
+    background-color: #007bff;
+  }
+
   </style>
 </head>
 <body>
-  <h1>コードエディタ</h1>
+  <div class="head">
+    <button><img src="./codemobile.png" alt="toplogo"></button>
+    <select id="lang_selector" name="lang_selector" required>
+      <option value="" disabled>マークアップ言語</option>
+      <option value="js" selected>Javascript</option>
+      <option value="css">CSS</option>
+      <option value="html">HTML</option>
+      <option value="rust">Rust</option>
+    </select>
+  </div>
   <div class="editor-container">
     <div class="line-numbers" id="lineNumbers"></div>
     <pre class="highlighted-code" id="highlightedCode"></pre>
@@ -110,7 +169,21 @@
     let allWords = [];
     let activeSuggestion = -1;
 
-    fetch('wordlist.json')
+    readwordlist("js");
+    function readwordlist(lang){
+      // 1. 前回のデータを初期化
+      wordlistData = {};
+      allWords = [];
+
+      // 2. 既存のハイライトCSSを削除
+      const styleSheet = document.styleSheets[0];
+      for (let i = styleSheet.cssRules.length - 1; i >= 0; i--) {
+        if (styleSheet.cssRules[i].selectorText && styleSheet.cssRules[i].selectorText.startsWith('.highlight-')) {
+          styleSheet.deleteRule(i);
+        }
+      }
+
+      fetch("./wordlists/" + lang + '.json')
       .then((res) => res.json())
       .then((data) => {
         wordlistData = data;
@@ -128,8 +201,24 @@
         if (saved) editor.value = saved;
         updateEditor();
       });
+    }
+
+    document.getElementById("lang_selector").addEventListener("change", function() {
+      const lang = this.value;
+      readwordlist(lang);
+    });
+
+    function escapeHTML(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
     function highlightCode(code) {
+        code = escapeHTML(code);
       // コメントと文字列は最初にハイライト
       code = code.replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>');
       code = code.replace(/(".*?"|'.*?')/g, '<span class="string">$&</span>');
@@ -160,7 +249,7 @@
       const content = editor.value;
       highlighted.innerHTML = highlightCode(content);
       localStorage.setItem(storageKey, content);
-      lineNumbers.innerHTML = Array.from({ length: content.split('\n').length }, (_, i) => i + 1).join('\n');
+      lineNumbers.innerHTML = Array.from({ length: content.split('\n').length }, (_, i) => i + 1).join('<br>');
     };
 
     editor.addEventListener('input', () => {
@@ -171,6 +260,8 @@
     editor.addEventListener('scroll', () => {
       highlighted.scrollTop = editor.scrollTop;
       lineNumbers.scrollTop = editor.scrollTop;
+      highlighted.scrollLeft = editor.scrollLeft;
+      console.log(highlighted.scrollTop + ")(" + lineNumbers.scrollTop);
     });
 
     editor.addEventListener('keydown', (e) => {
