@@ -15,6 +15,17 @@
     background-color: #282c34;
     height: 100vh;
   }
+  
+  #menu_top{
+    display: none;
+    position: fixed;
+    height: 100vh;
+    width:100svw;
+    top: 0;
+    left: 0;
+    background-color: #282c34;
+    z-index: 99;
+  }
 
   .head{
     height: 50px;
@@ -28,6 +39,7 @@
     border-radius: 0;
     padding: 0;
     cursor: pointer;
+    z-index: 1000;
   }
   .head img{
     height: 50px;
@@ -107,11 +119,11 @@
 
   /* ハイライト用クラス */
   .comment {
-    color: #5c6370;
+    color: #236108;
   }
 
   .string {
-    color: #98c379;
+    color: #FFFFFF;
   }
 
   /* 補完リスト */
@@ -142,8 +154,11 @@
   </style>
 </head>
 <body>
+  <div id="menu_top">
+    
+  </div>
   <div class="head">
-    <button><img src="./codemobile.png" alt="toplogo"></button>
+    <button onclick="menu_openner();"><img src="./codemobile.png" alt="toplogo"></button>
     <select id="lang_selector" name="lang_selector" required>
       <option value="" disabled>マークアップ言語</option>
       <option value="js" selected>Javascript</option>
@@ -159,6 +174,18 @@
     <ul id="autocomplete-list"></ul>
   </div>
   <script>
+  let isMenuOpen = false;
+  function menu_openner(){
+    if(isMenuOpen){
+      document.getElementById("menu_top").style.display = "none";
+      isMenuOpen = false;
+    }else{
+      document.getElementById("menu_top").style.display = "block";
+      isMenuOpen = true;
+    }
+  }
+  
+  
     const editor = document.getElementById('codeEditor');
     const highlighted = document.getElementById('highlightedCode');
     const lineNumbers = document.getElementById('lineNumbers');
@@ -208,29 +235,34 @@
       readwordlist(lang);
     });
 
-function escapeHTML(str) {
-  return str
-    .replace(/&/g, "&amp;")        // MUST be first!
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/=/g, "&#x3D;")
-    .replace(/\\/g, "&#x5C;");
-}
 
+    function escapeHTML(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+    
     function highlightCode(code) {
-        code = escapeHTML(code);
-      // コメントと文字列は最初にハイライト
-      code = code.replace(/(\/\/[^\n]*)/g, '<span class="comment">$1</span>');
-      code = code.replace(/(".*?"|'.*?')/g, '<span class="string">$&</span>');
-
-      // HTMLタグ以外の部分だけ処理する
-      const segments = code.split(/(<[^>]+>)/g); // HTMLタグとそうでない部分に分割
-      console.log(segments);
+      code = escapeHTML(code);
+      console.log(code);
+    
+      // コメント or 文字列を一括で処理（コメント優先）
+      code = code.replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|(".*?"|'.*?')/g, (match, comment, string) => {
+        if (string) {
+          return `<span class="string">${string}</span>`;
+        }else if (comment) {
+          return `<span class="comment">${comment}</span>`;
+        }
+        return match;
+      });
+      
+      // HTMLタグ・コメント部分をセグメント化して除外
+      const segments = code.split(/(<[^>]+>|<span class="comment">[\s\S]*?<\/span>)/g);
+    
       for (let i = 0; i < segments.length; i++) {
-        // タグでない部分だけ処理
-        if (!segments[i].startsWith('<')) {
+        // タグでもコメントでもない部分だけ
+        if (!segments[i].startsWith('<') && !segments[i].includes('class="comment"')) {
           for (const group in wordlistData) {
             for (const word in wordlistData[group]) {
               const className = 'highlight-' + word.replace(/[^a-zA-Z0-9_]/g, '');
@@ -241,10 +273,9 @@ function escapeHTML(str) {
           }
         }
       }
-
+    
       return segments.join('');
     }
-
 
 
     const updateEditor = () => {
